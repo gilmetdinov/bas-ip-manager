@@ -1,0 +1,7 @@
+.venv
+logs
+data
+test.*
+agent.env
+server.env
+*.pyc
