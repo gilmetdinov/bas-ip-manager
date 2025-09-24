@@ -4,6 +4,7 @@ from src.config import AgentConfig
 import asyncio
 import json
 from contextlib import asynccontextmanager
+import aiohttp
 
 class WebSocketClient:
     def __init__(self, config: AgentConfig, logger: logging.Logger):
@@ -35,6 +36,21 @@ class WebSocketClient:
         if self.running:
             self.logger.info(f"Переподключение через {self.reconnect_interval} секунд...")
             await asyncio.sleep(self.reconnect_interval)
+
+    async def auth_management(self, api_key: str, api_server: str):
+        """Неблокирующая попытка аутентификации на management сервере.
+
+        Отправляет POST /auth/agent с заголовком x-api-key. Лишь логируем результат.
+        """
+        url = f"{api_server.rstrip('/')}/auth/agent"
+        try:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, headers={'x-api-key': api_key}) as resp:
+                    ok = resp.status < 400
+                    self.logger.info(f"Аутентификация агента: status={resp.status} ok={ok}")
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"Аутентификация агента не удалась: {e}")
 
     async def handle_command(self, message):
         """Обработка команды от контроллера"""
@@ -126,6 +142,10 @@ def create_lifespan(config, logger):
     async def lifespan(app):
         ws_client = WebSocketClient(config, logger)
         # Запуск веб-сокет клиента при старте приложения
+        # 1) Пытаемся аутентифицироваться на management (не блокируем старт)
+        if config.api_key and config.api_server:
+            asyncio.create_task(ws_client.auth_management(config.api_key, config.api_server))
+        # 2) Запускаем веб‑сокет клиент
         task = asyncio.create_task(ws_client.connect_to_controller())
         logger.info(f"WebSocket клиент запущен")
         yield
