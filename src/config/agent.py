@@ -14,6 +14,7 @@ class AgentConfig(AbstractConfig):
     api_key: str
     api_server: str
     ws_server: str
+    agent_id: str
 
     def __init__(self, config_path = '.env'):
         super().__init__(config_path)
@@ -24,3 +25,4 @@ class AgentConfig(AbstractConfig):
         self.api_key = os.getenv(API_KEY)
         self.api_server = os.getenv(API_SERVER)
         self.ws_server = os.getenv(WS_SERVER)
+        self.agent_id = os.getenv(AGENT_ID, 'default-agent')
