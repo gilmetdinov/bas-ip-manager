@@ -1,5 +1,5 @@
 from .abstract import AbstractMethod
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, Query
 from ..ws_manager import ConnectionManager
 import json
 
@@ -11,15 +11,15 @@ class SocketMethod(AbstractMethod, route='/ws/1'):
 
     def set(self):
         @self._app.websocket(self._route)
-        async def ws_endpoint(websocket: WebSocket):
-            await self._ws_manager.connect(websocket)
+        async def ws_endpoint(websocket: WebSocket, agent_id: str = Query(default="unknown")):
+            await self._ws_manager.connect(websocket, agent_id)
             try:
                 while True:
                     data = await websocket.receive_text()
                     response = json.loads(data)
                     self._logger.info(f"[КОНТРОЛЛЕР] Ответ от сервера: {response}")
             except WebSocketDisconnect:
-                self._ws_manager.disconnect()
+                self._ws_manager.disconnect(agent_id)
             except Exception as e:
                 self._logger.error(f"[КОНТРОЛЛЕР] Ошибка веб-сокета : {e}")
-                self._ws_manager.disconnect()
+                self._ws_manager.disconnect(agent_id)

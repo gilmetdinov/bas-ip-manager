@@ -32,3 +32,9 @@ def setup_logging(component: str, log_dir: str = 'logs', level_alias: str = LOG_
 	root = logging.getLogger()
 	root.setLevel(level)
 	root.addHandler(handler)
+
+	# Также выводим логи в консоль, чтобы видеть события в stdout
+	console = logging.StreamHandler()
+	console.setLevel(level)
+	console.setFormatter(formatter)
+	root.addHandler(console)

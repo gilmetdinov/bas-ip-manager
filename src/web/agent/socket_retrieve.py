@@ -4,14 +4,20 @@ from src.config import AgentConfig
 import asyncio
 import json
 from contextlib import asynccontextmanager
+import aiohttp
+from src.clients import BASIPClient
+from typing import Callable, Optional
 
 class WebSocketClient:
-    def __init__(self, config: AgentConfig, logger: logging.Logger):
-        self.controller_url = f'{config.ws_server}/ws/1'
+    def __init__(self, config: AgentConfig, logger: logging.Logger, client_factory: Optional[Callable[..., BASIPClient]] = None):
+        # Добавляем agent_id в query, чтобы сервер различал подключения
+        self.controller_url = f'{config.ws_server}/ws/1?agent_id={config.agent_id}'
         self.websocket = None
         self.reconnect_interval = 5
         self.running = True
         self.logger = logger
+        # Фабрика BAS-IP клиента (можно заменить на мок/другую реализацию)
+        self.client_factory: Callable[..., BASIPClient] = client_factory or BASIPClient
 
     async def connect_to_controller(self):
         """Подключение к контроллеру с автопереподключением"""
@@ -36,6 +42,21 @@ class WebSocketClient:
             self.logger.info(f"Переподключение через {self.reconnect_interval} секунд...")
             await asyncio.sleep(self.reconnect_interval)
 
+    async def auth_management(self, api_key: str, api_server: str):
+        """Неблокирующая попытка аутентификации на management сервере.
+
+        Отправляет POST /auth/agent с заголовком x-api-key. Лишь логируем результат.
+        """
+        url = f"{api_server.rstrip('/')}/auth/agent"
+        try:
+            timeout = aiohttp.ClientTimeout(total=5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, headers={'x-api-key': api_key}) as resp:
+                    ok = resp.status < 400
+                    self.logger.info(f"Аутентификация агента: status={resp.status} ok={ok}")
+        except Exception as e:  # noqa: BLE001
+            self.logger.warning(f"Аутентификация агента не удалась: {e}")
+
     async def handle_command(self, message):
         """Обработка команды от контроллера"""
         try:
@@ -51,6 +72,8 @@ class WebSocketClient:
                 result = await self.handle_restart_service(command)
             elif command_type == 'deploy':
                 result = await self.handle_deploy(command)
+            elif command_type == 'open_doors':
+                result = await self.handle_open_doors(command)
             else:
                 result = await self.handle_unknown_command(command)
 
@@ -110,6 +133,57 @@ class WebSocketClient:
         'version': version
         }
 
+    async def handle_open_doors(self, command):
+        """Открытие всех переданных дверей через BASIPClient.
+
+        Формат команды:
+        {
+          "type": "open_doors",
+          "duration": 3,
+          "doors": [
+            {"base_url": "http://localhost:8855", "static_token": "TEST_TOKEN",
+             "open_url_template": "/access/general/lock/open/remote/control/accepted/{lock}", "lock_number": 1}
+          ]
+        }
+        """
+        duration = int(command.get('duration', 3))
+        doors = command.get('doors') or []
+
+        loop = asyncio.get_event_loop()
+        results = []
+
+        def _open_one(door_cfg: dict) -> dict:
+            try:
+                client = self.client_factory(
+                    base_url=door_cfg.get('base_url'),
+                    username=door_cfg.get('username', ''),
+                    password=door_cfg.get('password', ''),
+                    auth_path=door_cfg.get('auth_path', '/api/auth/login'),
+                    open_path=door_cfg.get('open_path', '/api/door/open'),
+                    open_url_template=door_cfg.get('open_url_template', ''),
+                    lock_number=int(door_cfg.get('lock_number', 1)),
+                    static_token=door_cfg.get('static_token'),
+                )
+                client.open_lock(duration)
+                return {"ok": True, "base_url": client.base_url}
+            except Exception as exc:  # noqa: BLE001
+                return {"ok": False, "error": str(exc), "base_url": door_cfg.get('base_url')}
+
+        # Выполняем запросы в пуле потоков, чтобы не блокировать event loop
+        tasks = [loop.run_in_executor(None, _open_one, door) for door in doors]
+        if tasks:
+            done = await asyncio.gather(*tasks, return_exceptions=False)
+            results.extend(done)
+
+        success_count = len([r for r in results if r.get('ok')])
+        fail = [r for r in results if not r.get('ok')]
+        if fail:
+            self.logger.warning(f"Открытие дверей: успехов={success_count} ошибок={len(fail)} детали={fail}")
+        else:
+            self.logger.info(f"Открытие дверей: успехов={success_count} ошибок=0")
+
+        return {"status": "completed", "success": success_count, "failed": fail}
+
     async def handle_unknown_command(self, command):
         """Обработка неизвестной команды"""
         return {
@@ -121,11 +195,15 @@ class WebSocketClient:
         """Остановка клиента"""
         self.running = False
 
-def create_lifespan(config, logger):
+def create_lifespan(config, logger, client_factory=None):
     @asynccontextmanager
     async def lifespan(app):
-        ws_client = WebSocketClient(config, logger)
+        ws_client = WebSocketClient(config, logger, client_factory)
         # Запуск веб-сокет клиента при старте приложения
+        # 1) Пытаемся аутентифицироваться на management (не блокируем старт)
+        if config.api_key and config.api_server:
+            asyncio.create_task(ws_client.auth_management(config.api_key, config.api_server))
+        # 2) Запускаем веб‑сокет клиент
         task = asyncio.create_task(ws_client.connect_to_controller())
         logger.info(f"WebSocket клиент запущен")
         yield
