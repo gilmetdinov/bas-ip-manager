@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from enum import StrEnum
+
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
@@ -12,6 +14,13 @@ class BASIPClientError(Exception):
     pass
 
 
+class BASIPv216Routes(StrEnum):
+    """For API version v2.16.0"""
+    login = '/api/auth/login'
+    open_door = '/access/general/lock/open/remote/accepted/{lock_number}'
+    
+
+
 @dataclass
 class BASIPClient:
     """Минимальный REST‑клиент BAS‑IP с поддержкой логина и открытия двери.
@@ -21,19 +30,18 @@ class BASIPClient:
     - Поддерживается как динамический токен (через логин), так и статический
     """
 
+    ROUTES = BASIPv216Routes
+    
+    door = None
     base_url: str
-    username: str
-    password: str
-
-    # Настраиваемые пути API (зависят от версии прошивки)
-    auth_path: str = "/api/auth/login"
-    open_path: str = "/api/door/open"
-    open_url_template: str = ""  # например: "/api/door/:lock-number/open"
-    lock_number: int = 1
-
     # Авторизация
+    username: Optional[str] = None
+    password: Optional[str] = None
     access_token: Optional[str] = None
     static_token: Optional[str] = None
+    
+    # параметры открытия дверей
+    lock_number: int = 0
 
     # Параметры HTTP‑клиента
     request_timeout_seconds: int = 10
@@ -42,6 +50,8 @@ class BASIPClient:
 
     def __post_init__(self) -> None:
         self._logger = logging.getLogger("basip-client")
+        if self.static_token is None and (self.username is None or self.password is None):
+            raise AttributeError("Для клиента необходимо заполнить или статичный токен или имя пользователя и пароль")
 
     # Публичные методы
     def login(self) -> None:
@@ -49,12 +59,11 @@ class BASIPClient:
         if self.static_token:
             # Если есть статический токен — логин не требуется
             self.access_token = self.static_token
-            return
+            return True
 
-        url = f"{self.base_url.rstrip('/')}{self.auth_path}"
         try:
             resp = requests.post(
-                url,
+                f"{self.base_url}{self.ROUTES.login}",
                 json={"username": self.username, "password": self.password},
                 timeout=self.request_timeout_seconds,
             )
@@ -75,22 +84,24 @@ class BASIPClient:
 
         Если задан шаблон GET‑URL — используем его, иначе POST с полем duration.
         """
-        if self.open_url_template:
-            if self.lock_number not in (0, 1, 2):
-                raise BASIPClientError("Недопустимый lock_number: разрешены 0,1,2")
-            path = (
-                self.open_url_template
-                .replace(":lock-number", str(self.lock_number))
-                .replace("{lock}", str(self.lock_number))
-            )
-            url = path if path.startswith("http") else f"{self.base_url.rstrip('/')}{path}"
-            self._do_request_with_retries("GET", url, headers={"Accept": "application/json", **self._auth_headers()})
-            return
+        url = f'{self.base_url}{self.ROUTES.open_door.format(lock_number=self.lock_number)}'
+        self._do_request_with_retries("GET", url, json={"duration": duration_seconds}, headers={"Accept": "application/json", **self._auth_headers()})
+        # if self.open_url_template:
+        #     if self.lock_number not in (0, 1, 2):
+        #         raise BASIPClientError("Недопустимый lock_number: разрешены 0,1,2")
+        #     path = (
+        #         self.open_url_template
+        #         .replace(":lock-number", str(self.lock_number))
+        #         .replace("{lock}", str(self.lock_number))
+        #     )
+        #     url = path if path.startswith("http") else f"{self.base_url.rstrip('/')}{path}"
+        #     self._do_request_with_retries("GET", url, headers={"Accept": "application/json", **self._auth_headers()})
+        #     return
 
-        # Вариант по умолчанию — POST с длительностью
-        url = f"{self.base_url.rstrip('/')}{self.open_path}"
-        payload: Dict[str, Any] = {"duration": duration_seconds}
-        self._do_request_with_retries("POST", url, json=payload, headers=self._auth_headers())
+        # # Вариант по умолчанию — POST с длительностью
+        # url = f"{self.base_url.rstrip('/')}{self.open_path}"
+        # payload: Dict[str, Any] = {"duration": duration_seconds}
+        # self._do_request_with_retries("POST", url, json=payload, headers=self._auth_headers())
 
     # Внутренние помощники
     def _auth_headers(self) -> Dict[str, str]:

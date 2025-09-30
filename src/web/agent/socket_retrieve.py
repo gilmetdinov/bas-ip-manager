@@ -6,18 +6,20 @@ import json
 from contextlib import asynccontextmanager
 import aiohttp
 from src.clients import BASIPClient
+from src.utilities.doors import DoorDto
 from typing import Callable, Optional
 
 class WebSocketClient:
     def __init__(self, config: AgentConfig, logger: logging.Logger, client_factory: Optional[Callable[..., BASIPClient]] = None):
         # Добавляем agent_id в query, чтобы сервер различал подключения
-        self.controller_url = f'{config.ws_server}/ws/1?agent_id={config.agent_id}'
+        self.controller_url = f'{config.ws_server}/ws/agent?agent_id={config.agent_id}'
         self.websocket = None
         self.reconnect_interval = 5
         self.running = True
         self.logger = logger
         # Фабрика BAS-IP клиента (можно заменить на мок/другую реализацию)
         self.client_factory: Callable[..., BASIPClient] = client_factory or BASIPClient
+        self.__config = config
 
     async def connect_to_controller(self):
         """Подключение к контроллеру с автопереподключением"""
@@ -139,38 +141,33 @@ class WebSocketClient:
         Формат команды:
         {
           "type": "open_doors",
-          "duration": 3,
-          "doors": [
-            {"base_url": "http://localhost:8855", "static_token": "TEST_TOKEN",
-             "open_url_template": "/access/general/lock/open/remote/control/accepted/{lock}", "lock_number": 1}
-          ]
+          "duration": 3
         }
         """
         duration = int(command.get('duration', 3))
-        doors = command.get('doors') or []
-
+        
         loop = asyncio.get_event_loop()
         results = []
 
-        def _open_one(door_cfg: dict) -> dict:
+        def _open_one(dto: DoorDto) -> dict:
             try:
                 client = self.client_factory(
-                    base_url=door_cfg.get('base_url'),
-                    username=door_cfg.get('username', ''),
-                    password=door_cfg.get('password', ''),
-                    auth_path=door_cfg.get('auth_path', '/api/auth/login'),
-                    open_path=door_cfg.get('open_path', '/api/door/open'),
-                    open_url_template=door_cfg.get('open_url_template', ''),
-                    lock_number=int(door_cfg.get('lock_number', 1)),
-                    static_token=door_cfg.get('static_token'),
+                    base_url=dto.url,
+                    username=dto.username,
+                    password=dto.password,
+                    # auth_path=door_cfg.get('auth_path', '/api/auth/login'),
+                    # open_path=door_cfg.get('open_path', '/api/door/open'),
+                    # open_url_template=door_cfg.get('open_url_template', ''),
+                    # lock_number=int(door_cfg.get('lock_number', 1)),
+                    static_token=dto.token,
                 )
                 client.open_lock(duration)
                 return {"ok": True, "base_url": client.base_url}
             except Exception as exc:  # noqa: BLE001
-                return {"ok": False, "error": str(exc), "base_url": door_cfg.get('base_url')}
+                return {"ok": False, "error": str(exc), "base_url": dto.url}
 
         # Выполняем запросы в пуле потоков, чтобы не блокировать event loop
-        tasks = [loop.run_in_executor(None, _open_one, door) for door in doors]
+        tasks = [loop.run_in_executor(None, _open_one, door) for door in self.__config.doors]
         if tasks:
             done = await asyncio.gather(*tasks, return_exceptions=False)
             results.extend(done)
@@ -195,7 +192,7 @@ class WebSocketClient:
         """Остановка клиента"""
         self.running = False
 
-def create_lifespan(config, logger, client_factory=None):
+def create_lifespan(config: AgentConfig, logger: logging.Logger, client_factory=None):
     @asynccontextmanager
     async def lifespan(app):
         ws_client = WebSocketClient(config, logger, client_factory)
