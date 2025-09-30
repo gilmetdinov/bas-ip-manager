@@ -1,7 +1,11 @@
 from .abstract import AbstractMethod
-from fastapi import Header
+from fastapi import Header, Body
 from fastapi.responses import JSONResponse
 from typing import Optional
+from sqlalchemy import select
+from src.db import get_postgres_engine, get_session_factory
+from src.db.models import User
+from src.security import verify_password
 
 
 class AuthMethod(AbstractMethod, route='/auth/agent'):
@@ -18,6 +22,21 @@ class AuthMethod(AbstractMethod, route='/auth/agent'):
             if not x_api_key or x_api_key != self._config.api_key:
                 return JSONResponse({"ok": False, "code": self.CODES.UNAUTHORIZED}, status_code=401)
             return JSONResponse({"ok": True, "code": self.CODES.OK})
+
+        @self._app.post('/auth/login')
+        async def login(payload: dict = Body(...)) -> JSONResponse:
+            email = (payload.get('email') or '').strip().lower()
+            password = payload.get('password') or ''
+            if not email or not password:
+                return JSONResponse({"ok": False, "code": self.CODES.BAD_REQUEST}, status_code=400)
+            engine = get_postgres_engine()
+            Session = get_session_factory(engine)
+            with Session() as session:
+                user = session.scalar(select(User).where(User.email == email))
+                if not user or not verify_password(password, user.password_hash) or not user.is_active:
+                    return JSONResponse({"ok": False, "code": self.CODES.UNAUTHORIZED}, status_code=401)
+                return JSONResponse({"ok": True, "user": {"email": user.email, "is_admin": user.is_admin}, "code": self.CODES.OK})
+
 
 
 
