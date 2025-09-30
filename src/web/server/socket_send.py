@@ -12,7 +12,7 @@ async def periodic_command_sender(manager: ConnectionManager):
             command = {
                 'type': 'health_check',
                 'timestamp': asyncio.get_event_loop().time(),
-                'message': 'Как дела, братишки?'
+                'message': 'Health check'
             }
             await manager.broadcast_command(command)
 

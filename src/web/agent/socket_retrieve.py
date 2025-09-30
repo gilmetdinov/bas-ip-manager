@@ -49,7 +49,7 @@ class WebSocketClient:
 
         Отправляет POST /auth/agent с заголовком x-api-key. Лишь логируем результат.
         """
-        url = f"{api_server.rstrip('/')}/auth/agent"
+        url = f"{api_server}/auth/agent"
         try:
             timeout = aiohttp.ClientTimeout(total=5)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -97,42 +97,10 @@ class WebSocketClient:
 
     async def handle_health_check(self, command):
         """Обработка health check команды"""
-        await asyncio.sleep(0.5)  # Имитация работы
         return {
         'status': 'healthy',
-        'message': f'Сервер жив-здоров!',
+        'message': f'Health check successful!',
         'uptime': asyncio.get_event_loop().time()
-        }
-
-    async def handle_restart_service(self, command):
-        """Обработка перезапуска сервиса"""
-        service_name = command.get('service_name', 'unknown')
-        self.logger.info(f"Перезапускаю сервис: {service_name}")
-
-        # Имитация перезапуска сервиса
-        await asyncio.sleep(2)
-
-        return {
-        'status': 'success',
-        'message': f'Сервис {service_name} перезапущен успешно!',
-        'service': service_name
-        }
-
-    async def handle_deploy(self, command):
-        """Обработка деплоя"""
-        app_name = command.get('app_name', 'unknown')
-        version = command.get('version', 'latest')
-
-        self.logger.info(f"Деплою {app_name} версии {version}")
-
-        # Имитация деплоя
-        await asyncio.sleep(3)
-
-        return {
-        'status': 'deployed',
-        'message': f'Приложение {app_name} версии {version} успешно задеплоено!',
-        'app_name': app_name,
-        'version': version
         }
 
     async def handle_open_doors(self, command):
@@ -185,7 +153,7 @@ class WebSocketClient:
         """Обработка неизвестной команды"""
         return {
         'status': 'error',
-        'message': f'Хз что за команда: {command.get("type", "unknown")}'
+        'message': f'Unknown command: {command.get("type", "unknown")}'
         }
 
     def stop(self):

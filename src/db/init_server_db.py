@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from src.db import Base, get_postgres_engine, get_session_factory
 from src.db.models import User
 from src.security import hash_password
@@ -26,6 +27,7 @@ def init_server_db(echo: bool = False, env_path: str | None = 'server.env') -> N
         return
 
     with SessionLocal() as session:
+        session: Session
         existing = session.scalar(select(User).where(User.email == admin_email))
         if existing:
             return
@@ -39,7 +41,7 @@ def init_server_db(echo: bool = False, env_path: str | None = 'server.env') -> N
         session.commit()
 
 
-if __name__ == '__main__':
-    init_server_db()
+# if __name__ == '__main__':
+#     init_server_db()
 
 

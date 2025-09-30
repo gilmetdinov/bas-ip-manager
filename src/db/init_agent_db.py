@@ -37,7 +37,7 @@ def init_agent_db(echo: bool = False, env_path: str | None = 'agent.env') -> Non
     _get_or_create_secret(path)
 
 
-if __name__ == '__main__':
-    init_agent_db()
+# if __name__ == '__main__':
+#     init_agent_db()
 
 

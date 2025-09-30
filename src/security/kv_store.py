@@ -1,6 +1,7 @@
 import os
 from cryptography.fernet import Fernet
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from src.db.init_agent_db import KV, _get_or_create_secret
 from src.db import get_sqlite_engine, get_session_factory
 
@@ -15,6 +16,7 @@ class SecureKVStore:
     def set(self, key: str, value: str) -> None:
         token = self._fernet.encrypt(value.encode('utf-8')).decode('utf-8')
         with self._Session() as session:
+            session: Session
             row = session.get(KV, key)
             if row is None:
                 row = KV(key=key, value_enc=token)

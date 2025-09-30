@@ -3,6 +3,7 @@ from fastapi import Header, Body
 from fastapi.responses import JSONResponse
 from typing import Optional
 from sqlalchemy import select
+from sqlalchemy.orm import Session
 from src.db import get_postgres_engine, get_session_factory
 from src.db.models import User
 from src.security import verify_password
@@ -30,8 +31,9 @@ class AuthMethod(AbstractMethod, route='/auth/agent'):
             if not email or not password:
                 return JSONResponse({"ok": False, "code": self.CODES.BAD_REQUEST}, status_code=400)
             engine = get_postgres_engine()
-            Session = get_session_factory(engine)
-            with Session() as session:
+            session_factory = get_session_factory(engine)
+            with session_factory() as session:
+                session: Session
                 user = session.scalar(select(User).where(User.email == email))
                 if not user or not verify_password(password, user.password_hash) or not user.is_active:
                     return JSONResponse({"ok": False, "code": self.CODES.UNAUTHORIZED}, status_code=401)
