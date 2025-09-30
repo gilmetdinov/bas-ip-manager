@@ -16,7 +16,7 @@ async def login() -> JSONResponse:
     return JSONResponse({"access_token": "TEST_TOKEN"})
 
 
-@app.get("/access/general/lock/open/remote/control/accepted/{lock}")
+@app.get("/access/general/lock/open/remote/accepted/{lock}")
 async def open_lock_get(lock: int, authorization: str = Header(default="")) -> JSONResponse:
     """Имитация открытия замка по GET‑шаблону пути.
 

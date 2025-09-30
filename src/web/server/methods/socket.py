@@ -4,7 +4,7 @@ from ..ws_manager import ConnectionManager
 import json
 
 
-class SocketMethod(AbstractMethod, route='/ws/1'):
+class SocketMethod(AbstractMethod, route='/ws/agent'):
     def __init__(self, app, config, logger, ws_manager: ConnectionManager, *args, **kwargs):
         super().__init__(app, config, logger, *args, **kwargs)
         self._ws_manager = ws_manager

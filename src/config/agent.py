@@ -3,6 +3,7 @@ import os
 from .abstract import AbstractConfig
 from src.logger import LOG_LEVEL_DEBUG
 from .env_keys import *
+from src.utilities.doors import DoorDto
 
 
 @dataclass
@@ -15,6 +16,7 @@ class AgentConfig(AbstractConfig):
     api_server: str
     ws_server: str
     agent_id: str
+    doors: list[DoorDto]
 
     def __init__(self, config_path = '.env'):
         super().__init__(config_path)
@@ -26,3 +28,4 @@ class AgentConfig(AbstractConfig):
         self.api_server = os.getenv(API_SERVER)
         self.ws_server = os.getenv(WS_SERVER)
         self.agent_id = os.getenv(AGENT_ID, 'default-agent')
+        self.doors = []
