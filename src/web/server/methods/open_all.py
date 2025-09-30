@@ -1,6 +1,7 @@
 from .abstract import AbstractMethod
 from fastapi import Body
 from fastapi.responses import JSONResponse
+from ..ws_manager import ConnectionManager
 
 
 class OpenAllMethod(AbstractMethod, route='/open/all'):
@@ -16,7 +17,7 @@ class OpenAllMethod(AbstractMethod, route='/open/all'):
     }
     """
 
-    def __init__(self, app, config, logger, ws_manager, *args, **kwargs):
+    def __init__(self, app, config, logger, ws_manager: ConnectionManager, *args, **kwargs):
         super().__init__(app, config, logger, *args, **kwargs)
         self._ws_manager = ws_manager
 
@@ -25,9 +26,8 @@ class OpenAllMethod(AbstractMethod, route='/open/all'):
         async def open_all(payload: dict = Body(default={})) -> JSONResponse:
             try:
                 duration = int(payload.get("duration", 3))
-                doors = payload.get("doors") or []
                 agent_id = payload.get("agent_id")  # если задан — шлём только одному агенту
-                command = {"type": "open_doors", "duration": duration, "doors": doors}
+                command = {"type": "open_doors", "duration": duration}
                 if agent_id:
                     await self._ws_manager.send_command(agent_id, command)
                     self._log_info(f"cmd=open_all sent to agent_id={agent_id} duration={duration}")
