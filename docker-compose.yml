@@ -1,0 +1,29 @@
+# PROD
+# run from /home/app directory (env file also stored there)
+services:
+  app:
+    build:
+      context: .
+    env_file: "./server.env"
+    container_name: app
+    restart: always
+    hostname: app
+    ports:
+      - "${PORT}:${PORT}"
+    volumes:
+      - ./server.env:/app/server.env
+      - ./${LOG_DIR}:/app/${LOG_DIR}
+    depends_on:
+      - db
+  db:
+    image: postgres:14.8-alpine3.18
+    env_file: "./server.env"
+    environment:
+      POSTGRES_DB: "${PG_DB}"
+      POSTGRES_USER: "${PG_USER}"
+      POSTGRES_PASSWORD: "${PG_PASSWORD}"
+    container_name: db
+    restart: always
+    hostname: ${PG_HOST}
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data

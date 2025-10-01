@@ -12,6 +12,7 @@ class ServerConfig(AbstractConfig):
     title: str
     port: int
     api_key: str
+    templates_dir: str
 
     def __init__(self, config_path = '.env'):
         super().__init__(config_path)
@@ -20,3 +21,4 @@ class ServerConfig(AbstractConfig):
         self.title = os.getenv(TITLE, "Local Agent API")
         self.port = int(os.getenv(PORT, 8843))
         self.api_key = os.getenv(API_KEY)
+        self.templates_dir = os.getenv(TEMPLATES_DIR, 'tepmlates/server')
