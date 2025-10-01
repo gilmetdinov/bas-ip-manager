@@ -10,6 +10,7 @@ RUN python -m venv /opt/venv && \
 
 ENV PATH="/opt/venv/bin:$PATH"
 
+COPY templates /app/templates
 COPY src /app/src
 COPY server.py /app/
 
