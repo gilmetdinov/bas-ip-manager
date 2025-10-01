@@ -3,5 +3,9 @@ logs
 data
 test.*
 agent.env
+agent.env.dev
+agent.env.prod
 server.env
+server.env.dev
+server.env.prod
 *.pyc
