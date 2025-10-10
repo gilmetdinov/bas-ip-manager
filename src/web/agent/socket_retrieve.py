@@ -113,6 +113,7 @@ class WebSocketClient:
         }
         """
         duration = int(command.get('duration', 3))
+        pulse_interval = max(1, min(5, command.get('pulse_interval', 1)))  # периодичность GET /remote/accepted
         
         loop = asyncio.get_event_loop()
         results = []
@@ -123,14 +124,25 @@ class WebSocketClient:
                     base_url=dto.url,
                     username=dto.username,
                     password=dto.password,
-                    # auth_path=door_cfg.get('auth_path', '/api/auth/login'),
-                    # open_path=door_cfg.get('open_path', '/api/door/open'),
-                    # open_url_template=door_cfg.get('open_url_template', ''),
-                    # lock_number=int(door_cfg.get('lock_number', 1)),
+                    # lock_number на уровне DoorDto пока не задан — используем по умолчанию 0
                     static_token=dto.token,
                 )
-                client.open_lock(duration)
-                return {"ok": True, "base_url": client.base_url}
+                # 1) Запускаем аварийный режим на весь период
+                client.start_emergency_and_open(unlock_time_seconds=duration)
+                # 2) Пока длится период — посылаем импульсы открытия через HTTP
+                import time as _t
+                deadline = _t.time() + duration
+                success_pulses = 0
+                errors: list[str] = []
+                while _t.time() < deadline:
+                    try:
+                        client.remote_open()
+                        success_pulses += 1
+                    except Exception as exc:  # noqa: BLE001
+                        errors.append(str(exc))
+                    # ждём интервал
+                    _t.sleep(pulse_interval)
+                return {"ok": True, "base_url": client.base_url, "pulses": success_pulses, "errors": errors}
             except Exception as exc:  # noqa: BLE001
                 return {"ok": False, "error": str(exc), "base_url": dto.url}
 
@@ -159,6 +171,7 @@ class WebSocketClient:
     def stop(self):
         """Остановка клиента"""
         self.running = False
+
 
 def create_lifespan(config: AgentConfig, logger: logging.Logger, client_factory=None):
     @asynccontextmanager
