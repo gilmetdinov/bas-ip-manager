@@ -20,8 +20,9 @@ class BASIPClientError(Exception):
 class BASIPv216Routes(StrEnum):
     """For API version v2.16.0"""
     login = '/login'
-    open_door = '/access/general/lock/open/emergency'
-    
+    # GET open via HTTP (access allowed event)
+    open_door = '/access/general/lock/open/remote/accepted/{lock_number}'
+    # POST start emergency and open for the specified time
 
 
 @dataclass
@@ -81,33 +82,42 @@ class BASIPClient:
             raise BASIPClientError("В ответе отсутствует access token")
         self.access_token = token
 
-    def open_lock(self, duration_seconds: int) -> None:
-        """Открыть замок/дверь на указанное количество секунд.
-
-        Если задан шаблон GET‑URL — используем его, иначе POST с полем duration.
+    def start_emergency_and_open(self, unlock_time_seconds: int) -> None:
+        """Запустить аварийный режим и открыть замки на указанный период.
+        unlock_time_seconds должен быть в диапазоне [1..604800].
         """
-        url = f'{self.base_url}{self.ROUTES.open_door}'
-        self._do_request_with_retries("POST", url, json={
-            'locks': [
-                {'lock_number': self.lock_number, 'unlock_time': 120}  # TODO: duration from server not flexible
-            ]
-        }, headers={"Accept": "application/json", 'Content-Type': 'application/json', **self._auth_headers()})
-        # if self.open_url_template:
-        #     if self.lock_number not in (0, 1, 2):
-        #         raise BASIPClientError("Недопустимый lock_number: разрешены 0,1,2")
-        #     path = (
-        #         self.open_url_template
-        #         .replace(":lock-number", str(self.lock_number))
-        #         .replace("{lock}", str(self.lock_number))
-        #     )
-        #     url = path if path.startswith("http") else f"{self.base_url.rstrip('/')}{path}"
-        #     self._do_request_with_retries("GET", url, headers={"Accept": "application/json", **self._auth_headers()})
-        #     return
+        if unlock_time_seconds < 1 or unlock_time_seconds > 604800:
+            raise BASIPClientError("unlock_time_seconds вне диапазона [1..604800]")
+        url = f"{self.base_url}{self.ROUTES.open_emergency}"
+        payload = {"locks": [{"lock_number": int(self.lock_number), "unlock_time": int(unlock_time_seconds)}]}
+        self._do_request_with_retries(
+            "POST",
+            url,
+            json=payload,
+            headers={"Content-Type": "application/json", "Accept": "application/json", **self._auth_headers()},
+        )
 
-        # # Вариант по умолчанию — POST с длительностью
-        # url = f"{self.base_url.rstrip('/')}{self.open_path}"
-        # payload: Dict[str, Any] = {"duration": duration_seconds}
-        # self._do_request_with_retries("POST", url, json=payload, headers=self._auth_headers())
+    def remote_open(self) -> None:
+        """Открыть замок через HTTP (access allowed event)."""
+        if self.lock_number not in (0, 1, 2):
+            raise BASIPClientError("Недопустимый lock_number: разрешены 0,1,2")
+        # В спецификации используется ":lock-number" как path param. В формате String.format применяем {lock_number}
+        url = f"{self.base_url}{self.ROUTES.open_door.format(lock_number=self.lock_number)}"
+        # GET без тела согласно спецификации. Только заголовки.
+        self._do_request_with_retries(
+            "GET",
+            url,
+            headers={"Accept": "application/json", **self._auth_headers()},
+        )
+
+    def open_lock(self, duration_seconds: int) -> None:
+        """Удобный метод: стартует emergency и делает один импульс remote_open.
+        Для длительного периода вызывающий код может сам повторять remote_open в цикле.
+        """
+        # Старт аварийного режима на требуемое время
+        self.start_emergency_and_open(unlock_time_seconds=duration_seconds)
+        # Сразу делаем один импульс открытия для генерации события "access allowed"
+        self.remote_open()
 
     # Внутренние помощники
     def _auth_headers(self) -> Dict[str, str]:
