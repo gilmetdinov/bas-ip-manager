@@ -122,6 +122,7 @@ class WebSocketClient:
             try:
                 client = self.client_factory(
                     base_url=dto.url,
+                    lock_number=dto.lock_number,
                     username=dto.username,
                     password=dto.password,
                     # lock_number на уровне DoorDto пока не задан — используем по умолчанию 0

@@ -48,7 +48,7 @@ def read_config(path: str, raw_data: dict = None) -> list[DoorDto]:
         try:
             if not isinstance(config, dict):
                 raise TypeError('Config must be dict')
-            dto = DoorDto(name, url=config.get('url'), username=config.get('username'), password=config.get('password'), token=config.get('token'))
+            dto = DoorDto(name, url=config.get('url'), lock_number=config.get('lock_number'), username=config.get('username'), password=config.get('password'), token=config.get('token'))
         except Exception as err:
             raise err  # more complex door reading scenarios (error only if no door processed at all? or at any door reading error?)
             continue

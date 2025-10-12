@@ -10,17 +10,19 @@ import time
 import requests
 
 
+from src.security.passwords import create_md5_hash
+
+
 class BASIPClientError(Exception):
     pass
 
 
 class BASIPv216Routes(StrEnum):
     """For API version v2.16.0"""
-    login = '/api/auth/login'
+    login = '/login'
     # GET open via HTTP (access allowed event)
     open_door = '/access/general/lock/open/remote/accepted/{lock_number}'
     # POST start emergency and open for the specified time
-    open_emergency = '/access/general/lock/open/emergency'
 
 
 @dataclass
@@ -36,14 +38,13 @@ class BASIPClient:
     
     door = None
     base_url: str
+    # параметры открытия дверей
+    lock_number: int = 0
     # Авторизация
     username: Optional[str] = None
     password: Optional[str] = None
     access_token: Optional[str] = None
     static_token: Optional[str] = None
-    
-    # параметры открытия дверей
-    lock_number: int = 0
 
     # Параметры HTTP‑клиента
     request_timeout_seconds: int = 10
@@ -64,9 +65,9 @@ class BASIPClient:
             return True
 
         try:
-            resp = requests.post(
+            resp = requests.get(
                 f"{self.base_url}{self.ROUTES.login}",
-                json={"username": self.username, "password": self.password},
+                params={"username": self.username, "password": create_md5_hash(self.password).capitalize()},
                 timeout=self.request_timeout_seconds,
             )
         except Exception as exc:  # noqa: BLE001
