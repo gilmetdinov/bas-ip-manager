@@ -10,14 +10,17 @@ import time
 import requests
 
 
+from src.security.passwords import create_md5_hash
+
+
 class BASIPClientError(Exception):
     pass
 
 
 class BASIPv216Routes(StrEnum):
     """For API version v2.16.0"""
-    login = '/api/auth/login'
-    open_door = '/access/general/lock/open/remote/accepted/{lock_number}'
+    login = '/login'
+    open_door = '/access/general/lock/open/emergency'
     
 
 
@@ -34,14 +37,13 @@ class BASIPClient:
     
     door = None
     base_url: str
+    # параметры открытия дверей
+    lock_number: int = 0
     # Авторизация
     username: Optional[str] = None
     password: Optional[str] = None
     access_token: Optional[str] = None
     static_token: Optional[str] = None
-    
-    # параметры открытия дверей
-    lock_number: int = 0
 
     # Параметры HTTP‑клиента
     request_timeout_seconds: int = 10
@@ -62,9 +64,9 @@ class BASIPClient:
             return True
 
         try:
-            resp = requests.post(
+            resp = requests.get(
                 f"{self.base_url}{self.ROUTES.login}",
-                json={"username": self.username, "password": self.password},
+                params={"username": self.username, "password": create_md5_hash(self.password).capitalize()},
                 timeout=self.request_timeout_seconds,
             )
         except Exception as exc:  # noqa: BLE001
@@ -84,8 +86,12 @@ class BASIPClient:
 
         Если задан шаблон GET‑URL — используем его, иначе POST с полем duration.
         """
-        url = f'{self.base_url}{self.ROUTES.open_door.format(lock_number=self.lock_number)}'
-        self._do_request_with_retries("GET", url, json={"duration": duration_seconds}, headers={"Accept": "application/json", **self._auth_headers()})
+        url = f'{self.base_url}{self.ROUTES.open_door}'
+        self._do_request_with_retries("POST", url, json={
+            'locks': [
+                {'lock_number': self.lock_number, 'unlock_time': 120}  # TODO: duration from server not flexible
+            ]
+        }, headers={"Accept": "application/json", 'Content-Type': 'application/json', **self._auth_headers()})
         # if self.open_url_template:
         #     if self.lock_number not in (0, 1, 2):
         #         raise BASIPClientError("Недопустимый lock_number: разрешены 0,1,2")

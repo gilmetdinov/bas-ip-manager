@@ -121,6 +121,7 @@ class WebSocketClient:
             try:
                 client = self.client_factory(
                     base_url=dto.url,
+                    lock_number=dto.lock_number,
                     username=dto.username,
                     password=dto.password,
                     # auth_path=door_cfg.get('auth_path', '/api/auth/login'),
