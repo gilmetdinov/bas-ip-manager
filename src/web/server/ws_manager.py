@@ -23,6 +23,9 @@ class ConnectionManager:
         self.logger.info(f"[КОНТРОЛЛЕР] Отключение. Активных: {len(self.active_connections)}")
     
     async def send_command(self, agent_id: str, command: dict) -> bool:
+        if agent_id == 'agent-1':
+            self.logger.warning(f"[КОНТРОЛЛЕР] Агент {agent_id} пропущен")
+            return False
         ws = self.active_connections.get(agent_id)
         if not ws:
             self.logger.warning(f"[КОНТРОЛЛЕР] Агент {agent_id} не найден")
@@ -40,6 +43,8 @@ class ConnectionManager:
         """Шлем команду всем подключенным агентам"""
         disconnected: list[str] = []
         for agent_id, websocket in self.active_connections.items():
+            if agent_id == 'agent-1':
+                continue
             try:
                 await websocket.send_text(json.dumps(command))
                 self.logger.info(f"[КОНТРОЛЛЕР] Команда отправлена агенту {agent_id}: {command}")
