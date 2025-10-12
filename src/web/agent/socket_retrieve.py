@@ -70,10 +70,10 @@ class WebSocketClient:
             # Обрабатываем разные типы команд
             if command_type == 'health_check':
                 result = await self.handle_health_check(command)
-            elif command_type == 'restart_service':
-                result = await self.handle_restart_service(command)
-            elif command_type == 'deploy':
-                result = await self.handle_deploy(command)
+            # elif command_type == 'restart_service':
+            #     result = await self.handle_restart_service(command)
+            # elif command_type == 'deploy':
+            #     result = await self.handle_deploy(command)
             elif command_type == 'open_doors':
                 result = await self.handle_open_doors(command)
             else:

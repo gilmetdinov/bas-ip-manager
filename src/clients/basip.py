@@ -23,6 +23,7 @@ class BASIPv216Routes(StrEnum):
     # GET open via HTTP (access allowed event)
     open_door = '/access/general/lock/open/remote/accepted/{lock_number}'
     # POST start emergency and open for the specified time
+    open_emergency = '/access/general/lock/open/emergency'
 
 
 @dataclass
@@ -99,8 +100,8 @@ class BASIPClient:
 
     def remote_open(self) -> None:
         """Открыть замок через HTTP (access allowed event)."""
-        if self.lock_number not in (0, 1, 2):
-            raise BASIPClientError("Недопустимый lock_number: разрешены 0,1,2")
+        if self.lock_number not in (1, 2):
+            raise BASIPClientError("Недопустимый lock_number: разрешены 1,2")
         # В спецификации используется ":lock-number" как path param. В формате String.format применяем {lock_number}
         url = f"{self.base_url}{self.ROUTES.open_door.format(lock_number=self.lock_number)}"
         # GET без тела согласно спецификации. Только заголовки.
