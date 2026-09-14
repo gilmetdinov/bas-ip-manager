@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<title>{{ title }}</title>
+<style>
+  body {
+    background: #121212;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #eee;
+    display: flex;
+    height: 100vh;
+    justify-content: center;
+    align-items: center;
+    margin: 0;
+  }
+  .login-form {
+    background: #1f1f1f;
+    padding: 30px 40px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px #4caf50aa;
+    width: 320px;
+    position: relative;
+  }
+  h2 {
+    text-align: center;
+    margin-bottom: 25px;
+    color: #4caf50;
+  }
+  label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    padding: 10px 12px;
+    margin-bottom: 18px;
+    border-radius: 5px;
+    border: none;
+    background: #333;
+    color: white;
+    font-size: 15px;
+  }
+  input[type="email"]::placeholder,
+  input[type="password"]::placeholder {
+    color: #777;
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    background: #4caf50;
+    color: #121212;
+    font-weight: 700;
+    font-size: 16px;
+    border: none;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+  }
+  button:hover {
+    background: #66bb6a;
+  }
+
+  /* Модалка */
+  .modal-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right:0;
+    bottom: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  .modal-content {
+    background: #242424;
+    padding: 30px 40px;
+    border-radius: 12px;
+    box-shadow: 0 0 25px #4caf50;
+    color: #eee;
+    min-width: 260px;
+    text-align: center;
+    position: relative;
+  }
+  .modal-content h3 {
+    margin-bottom: 20px;
+    color: #4caf50;
+  }
+  .close-btn {
+    position: absolute;
+    right: 10px;
+    top: 8px;
+    background: transparent;
+    border: none;
+    font-size: 21px;
+    cursor: pointer;
+    color: #4caf50;
+  }
+</style>
+</head>
+<body>
+
+<form class="login-form" id="doorForm">
+  <h2>Аутентификация</h2>
+  <label for="email">Логин (почта):</label>
+  <input type="email" id="email" required placeholder="Введите почту" />
+  <label for="password">Пароль:</label>
+  <input type="password" id="password" required placeholder="Введите пароль" />
+  <button type="submit">Отправить запрос на открытие дверей</button>
+</form>
+
+<div class="modal-bg" id="modal">
+  <div class="modal-content">
+    <button class="close-btn" id="closeModal">&times;</button>
+    <h3 id="modalMessage">Загрузка...</h3>
+  </div>
+</div>
+
+<script>
+  const form = document.getElementById('doorForm');
+  const modal = document.getElementById('modal');
+  const modalMessage = document.getElementById('modalMessage');
+  const closeModal = document.getElementById('closeModal');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    modal.style.display = 'flex';
+    modalMessage.textContent = 'Обрабатываем запрос...';
+    let email = document.getElementById('email').value;
+    let password = document.getElementById('password').value;
+    try {
+      const response = await fetch('/ajax/process', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({ email, password })
+      });
+      if (!response.ok) {
+        let errorMessage = `Ошибка ${response.status}`;
+        try {
+          const data = await response.json();
+          errorMessage = data.detail || data.message || errorMessage;
+        } catch {
+          errorMessage = await response.text() || errorMessage;
+        }
+        modalMessage.textContent = errorMessage;
+        return;
+      }
+      const data = await response.json();
+      modalMessage.textContent = data.message || (data.success ? 'Команда успешно отправлена!' : 'Не удалось отправить команду');
+    } catch (err) {
+      modalMessage.textContent = 'Возникла непредвиденная ошибка.';
+      console.error(err);
+    }
+  });
+  closeModal.addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+  modal.addEventListener('click', (e) => {
+    if(e.target === modal) modal.style.display = 'none';
+  });
+</script>
+
+</body>
+</html>
