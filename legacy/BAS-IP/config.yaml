@@ -1,7 +1,0 @@
-panels:
-  - name: mock
-    base_url: "http://127.0.0.1:8100"
-    token: "TEST"
-    open_url_template: "/access/general/lock/open/remote/control/accepted/:lock-number"
-    lock_number: 1
-

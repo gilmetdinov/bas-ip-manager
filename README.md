@@ -69,7 +69,6 @@ src/
 agent.py        agent entry point
 server.py       management entry point
 mock_basip.py   mock BAS-IP panel for local dev
-legacy/         earlier iteration of the project
 ```
 
 > This was a working tool for a specific deployment that didn't take off; it has

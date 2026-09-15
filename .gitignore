@@ -12,3 +12,5 @@ server.env.prod
 *.spec
 build
 dist
+# Старая итерация проекта (не используется)
+legacy/
